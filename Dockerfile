@@ -1,31 +1,49 @@
-# Use modern Ubuntu as base
+# ---- Builder stage: fetch and build tools that don't need to persist build deps ----
+FROM ubuntu:22.04 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    build-essential \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Opencode CLI
+RUN curl -fsSL https://github.com/opencodeai/opencode-cli/releases/latest/download/opencode-linux-amd64.tar.gz -L | tar -xz -C /tmp \
+    && mv /tmp/opencode /usr/local/bin/ \
+    && chmod +x /usr/local/bin/opencode
+
+# Install Pi coding agent
+# NOTE: adjust COPY path below if the install script places the binary elsewhere
+RUN curl -fsSL https://pi-coding-agent.com/install.sh | bash
+
+# ---- Runtime stage: no build-essential, no sudo ----
 FROM ubuntu:22.04
 
-# Set environment variables to avoid interactive prompts during installation
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
 ENV NODE_OPTIONS="--no-warnings"
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Install system dependencies and add repositories
+# Install system dependencies (no build-essential, no sudo)
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
     git \
     gnupg \
     ca-certificates \
-    build-essential \
     software-properties-common \
     apt-transport-https \
     unzip \
     zip \
     tar \
     gzip \
-    sudo \
     lsb-release \
     && rm -rf /var/lib/apt/lists/*
 
-# Add all external repositories and install packages
+# Add external repositories (rarely changes)
 RUN set -ex \
     # Node.js repository
     && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg \
@@ -41,31 +59,33 @@ RUN set -ex \
     # Claude repository
     && wget -q https://packages.anthropic.com/claude-archive-keyring.gpg -O /tmp/claude-archive-keyring.gpg \
     && gpg --dearmor -o /etc/apt/keyrings/claude-archive-keyring.gpg /tmp/claude-archive-keyring.gpg \
-    && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/claude-archive-keyring.gpg] https://packages.anthropic.com/claude-cli/ stable main" | tee /etc/apt/sources.list.d/claude-cli.list \
-    # Update and install all packages
-    && apt-get update \
-    && apt-get install -y \
-        nodejs \
-        dotnet-sdk-8.0 \
-        python3 \
-        python3-pip \
-        python3-venv \
-        neovim \
-        gh \
-        claude \
-    && rm -rf /var/lib/apt/lists/* \
-    # Upgrade pip
-    && python3 -m pip install --upgrade pip
+    && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/claude-archive-keyring.gpg] https://packages.anthropic.com/claude-cli/ stable main" | tee /etc/apt/sources.list.d/claude-cli.list
 
-# Install Opencode CLI and Pi coding agent
-RUN curl -fsSL https://github.com/opencodeai/opencode-cli/releases/latest/download/opencode-linux-amd64.tar.gz -L | tar -xz -C /tmp \
-    && mv /tmp/opencode /usr/local/bin/ \
-    && chmod +x /usr/local/bin/opencode \
-    && curl -fsSL https://pi-coding-agent.com/install.sh | bash
+# Install runtime languages (changes on major upgrades)
+RUN apt-get update && apt-get install -y \
+    nodejs \
+    dotnet-sdk-8.0 \
+    python3 \
+    python3-pip \
+    python3-venv \
+    && rm -rf /var/lib/apt/lists/*
 
-# Create a non-root user for security
-RUN useradd -m -s /bin/bash -G sudo,users developer \
-    && echo "developer ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+# Upgrade pip (own layer — changes infrequently)
+RUN python3 -m pip install --upgrade pip
+
+# Install dev tools (changes more often)
+RUN apt-get update && apt-get install -y \
+    neovim \
+    gh \
+    claude \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy tools from builder stage
+COPY --from=builder /usr/local/bin/opencode /usr/local/bin/opencode
+COPY --from=builder /usr/local/bin/pi /usr/local/bin/pi
+
+# Create non-root user without sudo
+RUN useradd -m -s /bin/bash -G users developer
 
 # Set working directory
 WORKDIR /workspace
