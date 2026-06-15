@@ -1,49 +1,118 @@
 # AI Agents Development Container
 
-This Dockerfile creates a modern development container with multiple AI agents and development tools pre-installed.
+A Docker container with multiple AI coding agents and development tools pre-installed.
 
 ## Features
 
 - **Base OS**: Ubuntu 22.04 (LTS)
-- **AI Agents**:
-  - GitHub Copilot CLI
-  - Claude CLI
-  - OpenCode CLI
-  - Pi Coding Agent
-- **Development Tools**:
-  - .NET 8.0 SDK
-  - Node.js LTS
-  - Python 3 with pip
-  - Neovim
+- **AI Agents**: Claude CLI, OpenCode CLI, Codex CLI, Pi Coding Agent
+- **Development Tools**: .NET 8 & 10 SDK, Node.js 24 LTS, Python 3 with pip, Neovim
 
 ## Prerequisites
 
 - Docker installed on your host system
-- Docker Compose (optional, for more complex scenarios)
 
 ## Building the Image
 
 ```bash
-# Build the Docker image
 docker build -t ai-agents-dev .
-
-# Optional: Build with specific tag
-docker build -t ai-agents-dev:latest .
 ```
 
-## Running the Container
+## Running Agents
 
-### Basic Usage
+### Use `run_agent.sh`
+
+Use `run_agent.sh` to launch any agent. It mounts your current directory as `/workspace`,
+maps the agent's config from your host, and names containers automatically (e.g. `claude-1`, `claude-2`).
+
+```bash
+./run_agent.sh <agent> [args...]
+```
+
+**Agents:** `claude`, `codex`, `pi`, `opencode`
+
+Any arguments after the agent name are passed directly to the agent command inside the container.
+
+### Examples
+
+```bash
+# Start an interactive Claude session
+./run_agent.sh claude
+
+# Pass a prompt directly to Claude
+./run_agent.sh claude -p "refactor this module for readability"
+
+# Start Codex
+./run_agent.sh codex
+
+# Start OpenCode
+./run_agent.sh opencode
+
+# Start Pi
+./run_agent.sh pi
+```
+
+### API Keys
+
+Set the relevant environment variable before running and it will be forwarded automatically:
+
+| Agent   | Environment variable |
+|---------|----------------------|
+| claude  | `ANTHROPIC_API_KEY`  |
+| codex   | `OPENAI_API_KEY`     |
+
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+./run_agent.sh claude
+```
+
+If `ANTHROPIC_API_KEY` is not set for `claude`, you can authenticate inside the container with `/login`.
+
+### Config persistence
+
+Each agent's config directory is mounted from your host, so authentication and settings persist across container runs:
+
+| Agent     | Host path               |
+|-----------|-------------------------|
+| claude    | `~/.claude`             |
+| codex     | `~/.codex`              |
+| pi        | `~/.pi`                 |
+| opencode  | `~/.config/opencode`    |
+
+## Running Multiple Agents
+
+Each `run_agent.sh` invocation starts a new container in a separate terminal. Containers are named with an incrementing index (`claude-1`, `claude-2`, etc.) so they don't conflict.
+
+```bash
+# Terminal 1
+./run_agent.sh claude
+
+# Terminal 2 — runs alongside the first
+./run_agent.sh claude
+```
+
+## Workspace
+
+Your current working directory is mounted to `/workspace` inside the container. Changes made by the agent are reflected on your host in real time.
+
+```bash
+# Run from your project root
+cd ~/Projects/my-app
+./path/to/run_agent.sh claude
+```
+
+
+### Running the Container
+
+You can also run the containers directly and start agents within it.
 
 ```bash
 # Run container interactively with volume mount
-docker run -it \
+docker run --rm -it  \
   --name ai-agents \
   -v "$(pwd):/workspace" \
   ai-agents-dev
 ```
-
-### With Environment Variables
 
 ```bash
 # Run with environment variables for AI tools
@@ -56,209 +125,27 @@ docker run -it \
   ai-agents-dev
 ```
 
-### With Port Mapping (if needed)
-
-```bash
-# Run with port mapping for development servers
-docker run -it \
-  --name ai-agents \
-  -v "$(pwd):/workspace" \
-  -p 3000:3000 \
-  -p 8000:8000 \
-  -e NODE_ENV="development" \
-  ai-agents-dev
-```
-
-### Using Docker Compose
-
-Create a `docker-compose.yml` file:
-
-```yaml
-version: '3.8'
-services:
-  ai-agents:
-    build: .
-    container_name: ai-agents
-    volumes:
-      - .:/workspace
-    environment:
-      - GITHUB_TOKEN=your_github_token
-      - ANTHROPIC_API_KEY=your_claude_api_key
-      - OPENCODE_API_KEY=your_opencode_api_key
-      - NODE_ENV=development
-    working_dir: /workspace
-    stdin_open: true
-    tty: true
-```
-
-Then run:
-
-```bash
-docker-compose up -d
-docker-compose exec ai-agents bash
-```
-
-## Accessing the Container Shell
-
-```bash
-# Start a new session in the running container
-docker exec -it ai-agents bash
-
-# Or attach to an existing session
-docker attach ai-agents
-```
-
-## AI Tool Setup and Usage
-
-### GitHub Copilot
-
-```bash
-# Authenticate GitHub Copilot
-gh auth login
-
-# Enable GitHub Copilot in Neovim
-nvim
-# Inside Neovim, run: :Copilot enable
-```
-
-### Claude CLI
-
-```bash
-# Set up Claude CLI authentication
-claude auth login
-
-# Use Claude CLI
-claude "your prompt here"
-```
-
-### OpenCode CLI
-
-```bash
-# Set up OpenCode CLI authentication
-opencode auth
-
-# Use OpenCode CLI
-opencode "your prompt here"
-```
-
-### Pi Coding Agent
-
-```bash
-# Pi should be ready to use
-pi "your coding task here"
-```
-
-## Environment Variables
-
-### Common Variables
-
-```bash
-# Development environment
-NODE_ENV=production
-PYTHONPATH=/workspace
-DOTNET_ENVIRONMENT=Production
-
-# AI Tool Configuration
-GITHUB_TOKEN=ghp_your_token_here
-ANTHROPIC_API_KEY=sk-ant-api03_your_key
-OPENCODE_API_KEY=your_opencode_key
-
-# Editor Configuration
-EDITOR=nvim
-VISUAL=nvim
-```
-
-### Example Usage with Environment Variables
-
-```bash
-# Run container with development environment
-docker run -it \
-  --name ai-agents-dev \
-  -v "$(pwd):/workspace" \
-  -e NODE_ENV="development" \
-  -e PYTHONPATH="/workspace" \
-  -e EDITOR="nvim" \
-  -e GITHUB_TOKEN="your_token" \
-  ai-agents-dev
-
-# Inside the container:
-# cd /workspace
-# npm init           # Node.js project
-# dotnet new web    # .NET project
-# python3 -m venv venv && source venv/bin/activate  # Python environment
-```
-
-## Volume Mounting
-
-The container mounts your current working directory to `/workspace`, making it accessible to all tools and agents:
-
-```bash
-# Host directory -> Container directory
--v "/path/to/host/code:/workspace"
-
-# For macOS users
--v "$HOME/Projects:/workspace"
-
-# For Linux users
--v "$(pwd):/workspace"
-```
-
-## Development Workflow
-
-1. **Start the container** with appropriate volume mounts and environment variables
-2. **Access the shell**: `docker exec -it ai-agents bash`
-3. **Set up your project**:
-   ```bash
-   cd /workspace
-   # Initialize your project
-   ```
-4. **Use AI tools** for development assistance
-5. **Code and develop** using the installed tools
-6. **Changes are reflected** on your host system in real-time
-
 ## Troubleshooting
 
-### Common Issues
+**Permission issues** — files created inside the container may be owned by a different UID:
+```bash
+sudo chown -R $USER:$USER .
+```
 
-1. **Permission issues**: Files created in the container may have different ownership
-   ```bash
-   # Fix ownership on host
-   sudo chown -R $USER:$USER /path/to/host/code
-   ```
+**Authentication** — if an agent can't authenticate, check that the right API key env var is set, or log in interactively inside the container.
 
-2. **AI tool authentication**: Ensure API tokens are correctly set as environment variables
+**Port conflicts** — if your agent starts a dev server, map ports with `-p` by running `docker run` directly with the same flags used in `run_agent.sh`.
 
-3. **Port conflicts**: Change port mappings if host ports are already in use
-
-### Container Management
+### Container management
 
 ```bash
-# List running containers
-docker ps
-
-# Stop container
-docker stop ai-agents
-
-# Remove container
-docker rm ai-agents
-
-# View container logs
-docker logs ai-agents
-
-# Start stopped container
-docker start ai-agents
+docker ps                  # list running agent containers
+docker stop claude-1       # stop a specific container
+docker logs claude-1       # view logs
 ```
 
 ## Security Notes
 
-- API tokens are passed as environment variables - consider using Docker secrets for production
-- The container runs as a non-root user for security
-- Volume mounts allow direct access to host files - be careful with sensitive data
-
-## Customization
-
-You can extend this Dockerfile by:
-- Adding more development tools
-- Installing specific AI model clients
-- Setting up additional environment configurations
-- Adding startup scripts for specific workflows
+- API keys are passed as environment variables — avoid committing them to source control
+- The container runs as a non-root user
+- `--security-opt seccomp=unconfined` is required by some agents for full functionality
