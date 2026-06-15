@@ -12,11 +12,15 @@ fi
 
 CONTAINER_HOME="/home/developer"
 ENV_ARGS=()
+# Each entry is "host_path:container_path" (file or directory)
+CONFIG_MOUNTS=()
 
 case "$AGENT" in
     claude)
-        HOST_CONFIG="$HOME/.claude"
-        CONTAINER_CONFIG="$CONTAINER_HOME/.claude"
+        CONFIG_MOUNTS=(
+            "$HOME/.claude:$CONTAINER_HOME/.claude"
+            "$HOME/.claude.json:$CONTAINER_HOME/.claude.json"
+        )
         AGENT_CMD="claude --dangerously-skip-permissions"
         # OAuth tokens live in macOS Keychain, not in claude.json.
         # Pass ANTHROPIC_API_KEY if set; otherwise the user must run /login inside.
@@ -27,19 +31,22 @@ case "$AGENT" in
         fi
         ;;
     codex)
-        HOST_CONFIG="$HOME/.codex"
-        CONTAINER_CONFIG="$CONTAINER_HOME/.codex"
+        CONFIG_MOUNTS=(
+            "$HOME/.codex:$CONTAINER_HOME/.codex"
+        )
         AGENT_CMD="codex --dangerously-bypass-approvals-and-sandbox"
         [[ -n "$OPENAI_API_KEY" ]] && ENV_ARGS=(-e "OPENAI_API_KEY=$OPENAI_API_KEY")
         ;;
     pi)
-        HOST_CONFIG="$HOME/.pi"
-        CONTAINER_CONFIG="$CONTAINER_HOME/.pi"
+        CONFIG_MOUNTS=(
+            "$HOME/.pi:$CONTAINER_HOME/.pi"
+        )
         AGENT_CMD="pi --approve "
         ;;
     opencode)
-        HOST_CONFIG="$HOME/.config/opencode"
-        CONTAINER_CONFIG="$CONTAINER_HOME/.config/opencode"
+        CONFIG_MOUNTS=(
+            "$HOME/.config/opencode:$CONTAINER_HOME/.config/opencode"
+        )
         AGENT_CMD="opencode"
         ;;
     *)
@@ -52,8 +59,23 @@ for arg in "$@"; do
     AGENT_CMD+=" $(printf '%q' "$arg")"
 done
 
-# Ensure host config dir exists so the mount doesn't create it as root-owned
-mkdir -p "$HOST_CONFIG"
+# Ensure host config paths exist so mounts don't create them as root-owned
+for mount in "${CONFIG_MOUNTS[@]}"; do
+    host_path="${mount%%:*}"
+    if [[ "$host_path" == */ ]] || [[ ! "$host_path" == *.* ]]; then
+        mkdir -p "$host_path"
+    else
+        # Looks like a file — ensure its parent dir exists and touch the file
+        mkdir -p "$(dirname "$host_path")"
+        [[ -e "$host_path" ]] || touch "$host_path"
+    fi
+done
+
+# Build -v flags from CONFIG_MOUNTS
+VOLUME_ARGS=()
+for mount in "${CONFIG_MOUNTS[@]}"; do
+    VOLUME_ARGS+=(-v "$mount")
+done
 
 # Find next available name (only check running containers; --rm cleans up stopped ones)
 INDEX=1
@@ -64,13 +86,15 @@ CONTAINER_NAME="${AGENT}-${INDEX}"
 
 echo "Starting $CONTAINER_NAME"
 echo "  workspace : $(pwd) -> /workspace"
-echo "  config    : $HOST_CONFIG -> $CONTAINER_CONFIG"
+for mount in "${CONFIG_MOUNTS[@]}"; do
+    echo "  config    : $mount"
+done
 
 exec docker run --rm -it \
     --name "$CONTAINER_NAME" \
     --security-opt seccomp=unconfined \
     "${ENV_ARGS[@]}" \
     -v "$(pwd):/workspace" \
-    -v "$HOST_CONFIG:$CONTAINER_CONFIG" \
+    "${VOLUME_ARGS[@]}" \
     ai-agents-dev \
     -c "$AGENT_CMD"
