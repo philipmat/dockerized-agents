@@ -11,13 +11,10 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Opencode CLI
-RUN curl -fsSL https://github.com/opencodeai/opencode-cli/releases/latest/download/opencode-linux-amd64.tar.gz -L | tar -xz -C /tmp \
+RUN curl -fsSL https://github.com/sst/opencode/releases/latest/download/opencode-linux-x64.tar.gz | tar -xz -C /tmp \
     && mv /tmp/opencode /usr/local/bin/ \
     && chmod +x /usr/local/bin/opencode
 
-# Install Pi coding agent
-# NOTE: adjust COPY path below if the install script places the binary elsewhere
-RUN curl -fsSL https://pi-coding-agent.com/install.sh | bash
 
 # ---- Runtime stage: no build-essential, no sudo ----
 FROM ubuntu:22.04
@@ -56,10 +53,7 @@ RUN set -ex \
     && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
     && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-    # Claude repository
-    && wget -q https://packages.anthropic.com/claude-archive-keyring.gpg -O /tmp/claude-archive-keyring.gpg \
-    && gpg --dearmor -o /etc/apt/keyrings/claude-archive-keyring.gpg /tmp/claude-archive-keyring.gpg \
-    && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/claude-archive-keyring.gpg] https://packages.anthropic.com/claude-cli/ stable main" | tee /etc/apt/sources.list.d/claude-cli.list
+    echo "Repositories configured"
 
 # Install runtime languages (changes on major upgrades)
 RUN apt-get update && apt-get install -y \
@@ -77,12 +71,18 @@ RUN python3 -m pip install --upgrade pip
 RUN apt-get update && apt-get install -y \
     neovim \
     gh \
-    claude \
+    bubblewrap \
+    socat \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy tools from builder stage
 COPY --from=builder /usr/local/bin/opencode /usr/local/bin/opencode
-COPY --from=builder /usr/local/bin/pi /usr/local/bin/pi
+
+# Install npm-based tools (Node.js is available at this point)
+RUN npm install -g npm@latest
+RUN npm install --loglevel verbose -g \
+    @anthropic-ai/claude-code \
+    @earendil-works/pi-coding-agent
 
 # Create non-root user without sudo
 RUN useradd -m -s /bin/bash -G users developer

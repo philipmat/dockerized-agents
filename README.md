@@ -12,7 +12,7 @@ This Dockerfile creates a modern development container with multiple AI agents a
   - Pi Coding Agent
 - **Development Tools**:
   - .NET 8.0 SDK
-  - Node.js 20 LTS
+  - Node.js LTS
   - Python 3 with pip
   - Neovim
 
