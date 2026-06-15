@@ -2,6 +2,7 @@
 set -e
 
 AGENT="$1"
+shift
 
 if [[ -z "$AGENT" ]]; then
     echo "Usage: $0 <agent>"
@@ -16,6 +17,7 @@ case "$AGENT" in
     claude)
         HOST_CONFIG="$HOME/.claude"
         CONTAINER_CONFIG="$CONTAINER_HOME/.claude"
+        AGENT_CMD="claude --dangerously-skip-permissions"
         # OAuth tokens live in macOS Keychain, not in claude.json.
         # Pass ANTHROPIC_API_KEY if set; otherwise the user must run /login inside.
         if [[ -n "$ANTHROPIC_API_KEY" ]]; then
@@ -27,21 +29,28 @@ case "$AGENT" in
     codex)
         HOST_CONFIG="$HOME/.codex"
         CONTAINER_CONFIG="$CONTAINER_HOME/.codex"
+        AGENT_CMD="codex --dangerously-bypass-approvals-and-sandbox"
         [[ -n "$OPENAI_API_KEY" ]] && ENV_ARGS=(-e "OPENAI_API_KEY=$OPENAI_API_KEY")
         ;;
     pi)
         HOST_CONFIG="$HOME/.pi"
         CONTAINER_CONFIG="$CONTAINER_HOME/.pi"
+        AGENT_CMD="pi --approve "
         ;;
     opencode)
         HOST_CONFIG="$HOME/.config/opencode"
         CONTAINER_CONFIG="$CONTAINER_HOME/.config/opencode"
+        AGENT_CMD="opencode"
         ;;
     *)
         echo "Unknown agent: $AGENT. Choose from: claude, codex, pi, opencode"
         exit 1
         ;;
 esac
+
+for arg in "$@"; do
+    AGENT_CMD+=" $(printf '%q' "$arg")"
+done
 
 # Ensure host config dir exists so the mount doesn't create it as root-owned
 mkdir -p "$HOST_CONFIG"
@@ -63,4 +72,5 @@ exec docker run --rm -it \
     "${ENV_ARGS[@]}" \
     -v "$(pwd):/workspace" \
     -v "$HOST_CONFIG:$CONTAINER_CONFIG" \
-    ai-agents-dev
+    ai-agents-dev \
+    -c "$AGENT_CMD"
