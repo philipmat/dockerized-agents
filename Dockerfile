@@ -1,22 +1,3 @@
-# ---- Builder stage: fetch and build tools that don't need to persist build deps ----
-FROM ubuntu:22.04 AS builder
-
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update && apt-get install -y \
-    curl \
-    wget \
-    build-essential \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Opencode CLI
-RUN curl -fsSL https://github.com/sst/opencode/releases/latest/download/opencode-linux-x64.tar.gz | tar -xz -C /tmp \
-    && mv /tmp/opencode /usr/local/bin/ \
-    && chmod +x /usr/local/bin/opencode
-
-
-# ---- Runtime stage: no build-essential, no sudo ----
 FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -44,7 +25,7 @@ RUN apt-get update && apt-get install -y \
 RUN set -ex \
     # Node.js repository
     && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg \
-    && echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
+    && echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
     # .NET repository
     && wget https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb \
     && dpkg -i packages-microsoft-prod.deb \
@@ -64,6 +45,13 @@ RUN apt-get update && apt-get install -y \
     python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
+# Install .NET 10 SDK via the official script (not yet in Ubuntu 22.04 APT feed)
+RUN curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
+    && chmod +x /tmp/dotnet-install.sh \
+    && /tmp/dotnet-install.sh --channel 10.0 --install-dir /usr/local/dotnet10 \
+    && rm /tmp/dotnet-install.sh
+ENV PATH="/usr/local/dotnet10:$PATH"
+
 # Upgrade pip (own layer — changes infrequently)
 RUN python3 -m pip install --upgrade pip
 
@@ -71,18 +59,17 @@ RUN python3 -m pip install --upgrade pip
 RUN apt-get update && apt-get install -y \
     neovim \
     gh \
+    fd-find ripgrep \
     bubblewrap \
     socat \
     && rm -rf /var/lib/apt/lists/*
-
-# Copy tools from builder stage
-COPY --from=builder /usr/local/bin/opencode /usr/local/bin/opencode
 
 # Install npm-based tools (Node.js is available at this point)
 RUN npm install -g npm@latest
 RUN npm install --loglevel verbose -g \
     @anthropic-ai/claude-code \
-    @earendil-works/pi-coding-agent
+    @earendil-works/pi-coding-agent \
+    opencode-ai
 
 # Create non-root user without sudo
 RUN useradd -m -s /bin/bash -G users developer
