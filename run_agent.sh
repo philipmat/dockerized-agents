@@ -93,6 +93,7 @@ done
 exec docker run --rm -it \
     --name "$CONTAINER_NAME" \
     --security-opt seccomp=unconfined \
+    --add-host=host.docker.internal:host-gateway \
     "${ENV_ARGS[@]}" \
     -v "$(pwd):/workspace" \
     "${VOLUME_ARGS[@]}" \
