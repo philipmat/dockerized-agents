@@ -97,6 +97,10 @@ RUN npm install --loglevel verbose -g \
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN playwright install chromium && chmod -R 755 /ms-playwright
 
+# Entrypoint: forward host MCP ports then exec the requested command
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 # Create non-root user without sudo
 RUN useradd -m -s /bin/bash -G users developer
 
@@ -109,8 +113,9 @@ USER developer
 # Configure shell
 SHELL ["/bin/bash", "-c"]
 
-# Default entry point is interactive shell
-ENTRYPOINT ["/bin/bash"]
+# Default entry point starts MCP port forwarding then execs the requested command
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["/bin/bash"]
 
 # Expose default ports for potential services
 EXPOSE 3000 8000 8080 8888

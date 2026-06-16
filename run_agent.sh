@@ -98,4 +98,4 @@ exec docker run --rm -it \
     -v "$(pwd):/workspace" \
     "${VOLUME_ARGS[@]}" \
     ai-agents-dev \
-    -c "$AGENT_CMD"
+    /bin/bash -c "$AGENT_CMD"
