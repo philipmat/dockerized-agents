@@ -39,18 +39,19 @@ RUN set -ex \
 # Install runtime languages (changes on major upgrades)
 RUN apt-get update && apt-get install -y \
     nodejs \
-    dotnet-sdk-8.0 \
     python3 \
     python3-pip \
     python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
-# Install .NET 10 SDK via the official script (not yet in Ubuntu 22.04 APT feed)
+# Install .NET 8 and .NET 10 SDKs via the official script into a shared install dir
+# so both SDKs are visible to a single dotnet host (dotnet --list-sdks shows both)
 RUN curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
     && chmod +x /tmp/dotnet-install.sh \
-    && /tmp/dotnet-install.sh --channel 10.0 --install-dir /usr/local/dotnet10 \
+    && /tmp/dotnet-install.sh --channel 8.0 --install-dir /usr/local/dotnet \
+    && /tmp/dotnet-install.sh --channel 10.0 --install-dir /usr/local/dotnet \
     && rm /tmp/dotnet-install.sh
-ENV PATH="/usr/local/dotnet10:$PATH"
+ENV PATH="/usr/local/dotnet:$PATH"
 
 # Upgrade pip (own layer — changes infrequently)
 RUN python3 -m pip install --upgrade pip
@@ -59,7 +60,7 @@ RUN python3 -m pip install --upgrade pip
 RUN apt-get update && apt-get install -y \
     neovim \
     gh \
-    fd-find ripgrep \
+    fd-find ripgrep jq \
     bubblewrap \
     socat \
     libglib2.0-0 \
