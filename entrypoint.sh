@@ -4,8 +4,10 @@
 socat TCP-LISTEN:64342,fork,reuseaddr TCP:host.docker.internal:64342 2>/dev/null &
 socat TCP-LISTEN:64343,fork,reuseaddr TCP:host.docker.internal:64343 2>/dev/null &
 
+# echo "preparing sql binding"
 # sql server running on port 1433 in another container
-socat TCP-LISTEN:1433,bind=127.0.0.1,fork,reuseaddr TCP:host.docker.internal:1433
+# socat TCP-LISTEN:1433,bind=127.0.0.1,fork,reuseaddr TCP:host.docker.internal:1433
+socat TCP-LISTEN:1433,fork,reuseaddr TCP:host.docker.internal:1433 2>/dev/null &
 
 # Disable the sandbox inside the container (not needed in Docker).
 node -e "
@@ -17,4 +19,5 @@ node -e "
     fs.writeFileSync(p, JSON.stringify(s, null, 2));
 "
 
+# echo "starting agent"
 exec "$@"
