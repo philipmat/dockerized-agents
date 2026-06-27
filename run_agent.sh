@@ -18,8 +18,8 @@ CONFIG_MOUNTS=()
 case "$AGENT" in
     claude)
         CONFIG_MOUNTS=(
-            "$HOME/.claude:$CONTAINER_HOME/.claude"
-            "$HOME/.claude.json:$CONTAINER_HOME/.claude.json"
+            "$HOME/.claude-dockerized:$CONTAINER_HOME/.claude"
+            "$HOME/.claude-dockerized.json:$CONTAINER_HOME/.claude.json"
         )
         AGENT_CMD="claude --dangerously-skip-permissions"
         # OAuth tokens live in macOS Keychain, not in claude.json.
@@ -90,6 +90,10 @@ for mount in "${CONFIG_MOUNTS[@]}"; do
     echo "  config    : $mount"
 done
 
+# could add
+#    --network container:<mssql container name>
+# to bind localhost to the sql server's network
+# but this causes other issues
 exec docker run --rm -it \
     --name "$CONTAINER_NAME" \
     --security-opt seccomp=unconfined \
