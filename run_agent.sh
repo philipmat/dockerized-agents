@@ -17,6 +17,9 @@ CONFIG_MOUNTS=()
 
 case "$AGENT" in
     claude)
+        # mount special files in case the host also runs normal Claude
+        # the reason for the separation is that host might run with a different config,
+        # for example sandboxed Claude
         CONFIG_MOUNTS=(
             "$HOME/.claude-dockerized:$CONTAINER_HOME/.claude"
             "$HOME/.claude-dockerized.json:$CONTAINER_HOME/.claude.json"
